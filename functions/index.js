@@ -1,6 +1,6 @@
 const functions = require('firebase-functions');
 
-const { dialogflow, SignIn, Permission, BasicCard, Button } = require('actions-on-google');
+const { dialogflow, SignIn, Permission, BasicCard, Button, SimpleResponse } = require('actions-on-google');
 const CREDENTIAL = { clientID: '562991921054-t9dej66lmq315pcn90fktaaadrdkg4u7.apps.googleusercontent.com' };
 const app = dialogflow({ debug: true, clientId: CREDENTIAL.clientID });
 const admin = require('firebase-admin');
@@ -18,30 +18,23 @@ const Register = require('./register.js');
 const Game = require('./game.js');
 
 const weather = require('weather-js');
-
 const Weather = require('./weather.js');
+const Assist = require('./assist.js');
+const surface = require('./surface.js');
 
+const ENDPOINT = 'https://weather-21368.firebaseapp.com';
 
 // google API で lat long -> zipcodeに変換したら、gooole home, google asisstnatで天気がきける！
-
 app.intent('Default Welcome Intent', async (conv, params, raw) => {
 
-    // conv.user.last.seen = '';
-    const seen = conv.user.last.seen;
     const payload = conv.user.profile.payload;
 
-    if (!seen) {
-        conv.ask('こちら宇宙人撃退本部。連絡ありがとう、君は射撃で有名らしいな。もう既に聞いたかと思うが、肉眼では見えないUFOや宇宙人が地球を荒らしている。君の力が必要だ。');
-        // 効果音をここに追加　爆発するような音
-        conv.ask('まずい！！宇宙人が出現した！！時間がない、今直ぐ本部に君の情報を共有して身分証明証を発行してほしい。いいか？');
-        conv.contexts.set('helpyesnocontext', 100);
-        return;
-    }
-
     if (!payload) {
-        conv.ask('まだ本部にアカウント情報が送信されていないみたいだ。');
-        conv.ask('今直ぐにサインインをして身分証明証を発行して欲しい。いいか？');
-        conv.contexts.set('helpyesnocontext', 5);
+        conv.ask('こちら宇宙人撃退本部。もう既に聞いたかと思うが、肉眼では見えないUFOや宇宙人が地球を侵略しにきた。既に死傷者が出ている。');
+        const url = ENDPOINT + '/explosion.mp3';
+        const speech = `<speak><audio src="${url}"></audio>まずい！！宇宙人が出現した！！宇宙人を探して倒して欲しい、いいか？</speak>`;
+        conv.ask(new SimpleResponse({ speech: speech, text: 'まずい！！宇宙人が出現した！！宇宙人を探して倒して欲しい、いいか？' }));
+        conv.contexts.set('helpyesnocontext', 100);
         return;
     }
 
@@ -52,45 +45,30 @@ app.intent('Default Welcome Intent', async (conv, params, raw) => {
     const game = new Game(conv);
     const bulletStatus = await game.getBullet();
 
-    if (user.done) {
-        const name = user.name;
-        const randomCity = shuffle(['東京', '名古屋', '千葉', '大阪', '沖縄'])[0];
-        const msgs = [
-            `${randomCity}で宇宙人が多く出現しているとの報告を受けた。もしかしたら君の場所でも宇宙人が出現しやすい天候かもしれない`, 
-            `${randomCity}で宇宙人の確認が出現するかもしれない。君の場所に出現するかもしれない`,
-            `${randomCity}で負傷者がでた。要注意が必要だ`,
-        ]
-        
-        const welcomeMsg = shuffle(msgs)[0];
-
-        console.log("Bullet Runout --> ", bulletStatus["runout"]);
-
-        if (bulletStatus["runout"]) {
-            conv.ask(`${name}、ミサイルがなくなったみたいだな。ミサイル補充だな？`);
-            conv.contexts.set('searchweather', 5);
-            // conv.contexts.set('missileyesnocontext', 5);
-            conv.contexts.set('morebulletcontext', 5);
-        } else {
-            conv.ask(`${name}、${welcomeMsg}。そこの天気を調べる、今の位置情報を教えてくれ。`);
-            conv.contexts.set('searchweather', 5);
+    if (user) {
+        if (user.done) {
+            const assist = new Assist();
+            console.log("Bullet Runout --> ", bulletStatus["runout"]);
+            if (bulletStatus["runout"]) {
+                assist.getMissiles(conv);
+                assist.assistAgain(conv)
+            } else {
+                assist.welcomeAssist(conv);
+            }
         }
     } else {
         register.done();
         await game.initScore();
         await game.supplyBullet();
-        conv.close('本部から手続きの確認が取れたとの報告がきた。これからは天気と宇宙人の出現情報が本部から共有される。定期的にコンタクトを取るように。宇宙人の出現報告が出た時は、落ち着いて倒すのだ。幸運を祈る。')
+        conv.close('手続きの確認が取れた。宇宙人が出現したら落ち着いて倒そう。繰り返し言うが、悪天候の日には宇宙人が多く発生する。')
+        conv.close('天候は宇宙人の発生率に関係する、天気を気にするように。天気情報は本部にリクエスとすると取得できる。身の危険を感じたら援護する。また連絡をしてくれ。')
     }
 })
-
-// app.intent('MissileYesNoIntent', async (conv, params) => {
-//     conv.ask('応援の要請、ミサイル補充、今の天候、なにを聞きたい？');
-//     // conv.contexts.set('searchweather', 5);
-// })
 
 app.intent('MoreBulletIntent', async (conv, params) => {
     const game = new Game(conv);
     await game.supplyBullet();
-    conv.close("ミサイル補充隊が向かっている。すぐにミサイルが補充される。引き続きよろしく頼む。")
+    conv.close("ミサイルを補充した。引き続き倒してくれ。");
 })
 
 app.intent('SearchWeatherIntent', async (conv, params) => {
@@ -113,9 +91,7 @@ app.intent('SearchWeatherIntent', async (conv, params) => {
         return;
     }
 
-    // const current = weather[0].current;
     const conditions = ["Mostly Sunny", "Cloudy", "Partly Cloudy", "Sunny", "Clear", "Mostly Clear", "Mostly Cloudy", "Partly Sunny", "Light Rain"]
-    // const sky = current['skytext'];
     const sky = shuffle(conditions)[0];
 
     let skytext = '';
@@ -123,43 +99,42 @@ app.intent('SearchWeatherIntent', async (conv, params) => {
     switch (sky) {
         case "Mostly Sunny":
             skytext = "ほぼ晴れ";
-            alienNumber = 40
+            alienNumber = 10
             break;
         case "Cloudy":
             skytext = "曇り";
-            alienNumber = 120
+            alienNumber = 18
             break;
         case "Partly Cloudy":
             skytext = "晴れのち曇り";
-            alienNumber = 60
-            break;
+            alienNumber = 11
         case "Sunny":
             skytext = "晴れ";
-            alienNumber = 10
+            alienNumber = 3;
             break;
         case "Clear":
             skytext = "雲1つない快晴";
-            alienNumber = 10
+            alienNumber = 2;
             break;
         case "Mostly Clear":
             skytext = "ほぼ快晴";
-            alienNumber = 20
+            alienNumber = 5;
             break;
         case "Mostly Cloudy":
             skytext = "ほぼ曇り";
-            alienNumber = 90
+            alienNumber = 17;
             break;
         case "Partly Sunny":
             skytext = "所により晴れ";
-            alienNumber = 70
+            alienNumber = 8;
             break;
         case "Light Rain":
             skytext = "小雨";
-            alienNumber = 50
+            alienNumber = 18;
             break;
         default:
             skytext = current.skytext;
-            break
+            break;
     }
 
     // const temp = current['temperature'];
@@ -171,15 +146,15 @@ app.intent('SearchWeatherIntent', async (conv, params) => {
 
     let phrase = [];
     if (alienNumber === 0) {
-        phrase = ['宇宙人はいないみたいだ', 'いなさそうだ', '大丈夫そうだ、いなさそうだ。'];
+        phrase = ['宇宙人は今近くにはいないみたいだ。', 'いなさそうだ。', '大丈夫そうだ、近くにはいなさそうだ。'];
     } else {
-        phrase = ['もしかしたら宇宙人がいるかもしれない', 'かなりいるかもしれない', '少しいるみたいだ。倒そう'];
+        phrase = ['宇宙人出現するかもしれない。', '周りに既にいるかもしれない。', '少しいるみたいだ。'];
     }
 
     const w = new Weather(conv);
     await w.add(city, skytext, temp);
 
-    conv.close(`${given_name}, 今日は${temp}度。${skytext}みたいだな。${phrase[0]}。地球を救ってくれ。幸運を祈る。`);
+    conv.close(`${given_name}, 今日は${temp}度。${skytext}。${phrase[0]}。レーダーに宇宙人が映ったら倒すのだ。`);
 })
 
 app.intent('HelpYesNoIntent', async (conv, params) => {
@@ -197,9 +172,12 @@ app.intent('GetLocationIntent', async (conv, params, confirmationGranted) => {
     const given_name = conv.user.profile.payload.given_name;
 
     console.log(JSON.stringify(conv.user));
+    console.log(JSON.stringify(conv.device));
+    console.log(JSON.stringify(conv));
 
     if (confirmationGranted) {
-        await aliensBattleWithWeather(conv);
+        // await aliensBattleWithWeather(conv);
+        conv.ask('はろ');
     } else {
         const game = new Game(conv);
         const alienNumber = 10; // random
@@ -212,7 +190,7 @@ app.intent('GetLocationIntent', async (conv, params, confirmationGranted) => {
         }
         await game.stayAlert();
         conv.close(`${given_name}, ${phrase[0]}。みたいだ。`);
-    }
+    };
 });
 
 app.intent('SignIntent', async (conv, params, signin) => {
@@ -225,19 +203,69 @@ app.intent('SignIntent', async (conv, params, signin) => {
     const register = new Register(conv);
     await register.register();
 
-    conv.close(`本部に君の情報を送信した。曇り空の日にはUFOがよく出現すると言われている。本部に連絡を取ると周辺の天気情報が取得できる。`);
-    conv.close('よし、次に、戦うために必要な武器をAppStoreに用意した。そこに入隊契約書も入っている、よく読んでくれ。手続きはこの下のリンクからいける。同じアカウントを使用して身分を証明するように。準備が終わったら、また直ぐに連絡をしてくれ。');
-
-    conv.close(new BasicCard({
-        text: 'アプリ名' + '\n\n',
-        buttons: new Button({
-            title: 'App Store Link',
-            url: 'https://github.com/kboy-silvergym/ARKit-Emperor',
-        })
-    }));
-
+    conv.close(`情報共有、ありがとう。曇りの日にはUFOがよく出現すると言われている。我々と連絡を取り周辺の天気情報が取得してくれ。`);
+    if (surface.output(conv)) {
+        conv.close('次に、戦うために必要なレーダーをAppStoreに用意した。君を管理するために、同じアカウントのメールアドレスを提出するように。手続きはこの下のリンクからいける。自分のメールアドレスを確認してから武器を入手してくれ。準備が終わったら、また直ぐに連絡を。');
+        conv.close(new BasicCard({
+            text: 'inradar' + '\n\n',
+            buttons: new Button({
+                title: 'inradarを入手 Link',
+                url: 'https://github.com/kboy-silvergym/ARKit-Emperor',
+            })
+        }));
+    } else {
+        conv.close('次に、戦うために必要なレーダーをAppStoreに用意した。インレーダーというアプリだ。君を管理するために、同じアカウントのメールアドレスを提出するように。自分のメールアドレスを確認してから武器を入手してくれ。準備が終わったら、また直ぐに連絡を。');
+    }
 })
 
+app.intent('NoInputIntent', async (conv, params) => {
+    const repromptCount = parseInt(conv.arguments.get('REPROMPT_COUNT'));
+    console.log(repromptCount)
+    const payload = conv.user.profile.payload;
+    if (repromptCount === 2) {
+        conv.close('身の危険を感じたらまた連絡を。いつでも助ける準備ができている。')
+        return;
+    }
+
+    if (payload) {
+        const assist = new Assist();
+        await assist.assist(conv);
+        console.log('no input called');
+    } else {
+        console.log('no input called without payload');
+    }
+})
+
+app.intent('YesNoBulletIntent', async (conv, parms) => {
+    const game = new Game(conv);
+    await game.noMissileNeeded(conv);
+    const assit = new Assist();
+    await assit.assistAgain(conv);
+})
+
+app.intent('OtherWeaponsIntent', async (conv, params) => {
+    const game = new Game(conv);
+    await game.swapWeapon();
+    conv.ask('購入画面を確認してくれださい。')
+    const assit = new Assist();
+    await assit.assistAgain(conv);
+})
+
+app.intent('AircraftIntent', async (conv, params) => {
+    const game = new Game(conv);
+    await game.sendAircrafts();
+    conv.ask('仲間が向かった。')
+    const assit = new Assist();
+    await assit.assistAgain(conv);
+})
+
+app.intent('StpoSpaceIntent', async (conv, params) => {
+    const game = new Game(conv);
+    await game.stopInvaders();
+    conv.ask('相手の動きを止めた。10秒だけだ、急いで倒せ。');
+    const assit = new Assist();
+    await assit.assistAgain(conv);
+})
 
 
 exports.weather = functions.https.onRequest(app);
@@ -270,20 +298,19 @@ function requestPermission(conv) {
 
 function shuffle(array) {
     var currentIndex = array.length, temporaryValue, randomIndex;
-  
+
     // While there remain elements to shuffle...
     while (0 !== currentIndex) {
-  
-      // Pick a remaining element...
-      randomIndex = Math.floor(Math.random() * currentIndex);
-      currentIndex -= 1;
-  
-      // And swap it with the current element.
-      temporaryValue = array[currentIndex];
-      array[currentIndex] = array[randomIndex];
-      array[randomIndex] = temporaryValue;
+
+        // Pick a remaining element...
+        randomIndex = Math.floor(Math.random() * currentIndex);
+        currentIndex -= 1;
+
+        // And swap it with the current element.
+        temporaryValue = array[currentIndex];
+        array[currentIndex] = array[randomIndex];
+        array[randomIndex] = temporaryValue;
     }
-  
+
     return array;
-  }
-  
+}
