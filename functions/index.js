@@ -61,7 +61,9 @@ app.intent('Default Welcome Intent', async (conv, params, raw) => {
         await game.initScore();
         await game.supplyBullet();
         conv.close('手続きの確認が取れた。宇宙人が出現したら落ち着いて倒そう。繰り返し言うが、悪天候の日には宇宙人が多く発生する。')
-        conv.close('天候は宇宙人の発生率に関係する、天気を気にするように。天気情報は本部にリクエスとすると取得できる。身の危険を感じたら援護する。また連絡をしてくれ。')
+        // conv.close('天候は宇宙人の発生率に関係する、天気を気にするように。天気情報は本部にリクエスとすると取得できる。身の危険を感じたら援護する。また連絡をしてくれ。')
+        const assist = new Assist();
+        assist.weather(conv);
     }
 })
 
@@ -153,7 +155,6 @@ app.intent('SearchWeatherIntent', async (conv, params) => {
 
     const w = new Weather(conv);
     await w.add(city, skytext, temp);
-
     conv.close(`${given_name}, 今日は${temp}度。${skytext}。${phrase[0]}。レーダーに宇宙人が映ったら倒すのだ。`);
 })
 

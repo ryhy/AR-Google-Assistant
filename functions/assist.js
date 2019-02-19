@@ -20,10 +20,9 @@ class Assist {
     }
 
     async assist(conv) {
-        switch (randomItem([0, 1, 2, 3, 4])) {
+        switch (randomItem([0, 1, 2, 3])) {
             case 0:
-                this.weather(conv);
-                break;
+                this.communicationError(conv);
             case 1:
                 this.sendAircrafts(conv);
                 break;
@@ -32,9 +31,6 @@ class Assist {
                 break;
             case 3:
                 this.stopSpace(conv);
-                break;
-            case 4:
-                this.communicationError(conv);
                 break;
             default: break;
         }
@@ -57,19 +53,19 @@ class Assist {
             `${randomCity}で負傷者がでた。要注意が必要だ`
         ];
         const welcomeMsg = randomItem(msgs);
-        conv.ask(`${name}、${welcomeMsg}。もし天気が知りたければ、現在地を教えてくれ。`);
-        // conv.contexts.set('searchweather', 5);
+        conv.ask(`${name}、早速だが、${welcomeMsg}。もし天気が知りたければ、現在地を教えてくれ。`);
+        conv.contexts.set('searchweather', 5);
     }
 
     welcomeAssist(conv) {
         const name = conv.user.profile.payload.name;
         const skillsAvailable = [
-            'ミサイル補充がなくなったら本部に連絡を。', 
+            'ミサイル補充がなくなったら本部に連絡を。',
             '仲間が必要であれば送ることができる。', 
-            '相手の動きが早いか？相手を止めることができるぞ。', 
+            '相手の動きが早いか？相手を止めることができるぞ。',
             '武器を入手することもできるぞ。',
-        ]
-        conv.ask(`${name}、どうした？${randomItem(skillsAvailable)}天気予報が知りたければ、現在地を。`);
+        ];
+        conv.ask(`${name}、どうした？${randomItem(skillsAvailable)}天気が知りたければ、現在地を。`);
         // conv.contexts.set('searchweather', 5);
         this.setAll(conv);
     }
@@ -82,7 +78,7 @@ class Assist {
             '相手の動きが早いか？相手を止めることができるぞ。', 
             '武器を入手することもできるぞ。',
             '天気予報が知りたければ、現在地を。'
-        ]
+        ];
         conv.ask(`他にしたいことはあるか？${randomItem(skillsAvailable)}`);
         // conv.contexts.set('searchweather', 5);
         this.setAll(conv);
